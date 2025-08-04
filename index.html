@@ -1,0 +1,230 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Minimi Checker v0.2.1</title>
+<style>
+  body {
+    background-color: #0c0c0c;
+    font-family: 'Segoe UI', sans-serif;
+    color: #00ff99;
+    margin: 0;
+    padding: 20px;
+  }
+  .container {
+    display: flex;
+    gap: 40px;
+  }
+  .panel, .estadisticas {
+    background-color: #101010;
+    padding: 20px;
+    border: 1px solid #00ff99;
+    border-radius: 10px;
+    box-shadow: 0 0 10px #00ff99;
+  }
+  .panel {
+    width: 30%;
+  }
+  .estadisticas {
+    width: 70%;
+  }
+  textarea {
+    width: 100%;
+    height: 120px;
+    background-color: #1a1a1a;
+    color: #00ff99;
+    border: 1px solid #00ff99;
+    padding: 10px;
+    font-size: 14px;
+    resize: none;
+    margin-bottom: 20px;
+  }
+  button {
+    width: 100%;
+    margin: 8px 0;
+    padding: 10px;
+    font-size: 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .btn-iniciar { background-color: #00cc66; color: #fff; }
+  .btn-detener { background-color: #cc0000; color: #fff; }
+  .btn-limpiar { background-color: #333; color: #fff; }
+  .btn-copiar { background-color: #0066cc; color: #fff; }
+  .box-counts span {
+    display: inline-block;
+    background-color: #1a1a1a;
+    padding: 10px 15px;
+    margin: 5px;
+    border-radius: 8px;
+    box-shadow: 0 0 5px #00ff99;
+  }
+  ul {
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 10px;
+    background-color: rgba(0,0,0,0.4);
+    border: 1px solid #00ff99;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    list-style: none;
+  }
+  .collapsible {
+    background-color: #0f0f0f;
+    color: #00ff99;
+    cursor: pointer;
+    padding: 10px;
+    width: 100%;
+    border: none;
+    border-bottom: 1px solid #00ff99;
+    text-align: left;
+    font-size: 16px;
+  }
+  .content {
+    padding: 0 15px;
+    display: none;
+    background-color: #1a1a1a;
+  }
+</style>
+</head>
+<body>
+<div id="estadoCuadro" style="display:none; position:fixed; top:20px; right:20px; background:#111; color:#0f0; padding:12px 20px; border-radius:8px; box-shadow:0 0 10px #0f0; z-index:9999;"></div>
+
+
+<div style="background:#111; color:#0f0; padding:10px 20px; font-weight:bold; font-size:24px; border-bottom: 1px solid #0f0;">
+  🚀 Minimi Checker v0.2.1
+</div>
+
+<div class="container">
+  <div class="panel">
+    <textarea id="cardNumbers" placeholder="Ingresa tarjetas aquí..."></textarea>
+    <button class="btn-iniciar" onclick="startChecking()">✅ Iniciar</button>
+    <button class="btn-detener" onclick="stopChecking()">🛑 Detener</button>
+    <button class="btn-limpiar" onclick="clearAll()">🧹 Limpiar</button>
+    <button class="btn-copiar" onclick="copiarAprobadas()">📋 Copiar Aprobadas</button>
+  </div>
+  <div class="estadisticas">
+    <h2>📊 Estadísticas</h2>
+    <div class="box-counts">
+      <span>Total: <span id="total">0</span></span>
+      <span>Aprobadas: <span id="aprobadas">0</span></span>
+      <span>Rechazadas: <span id="rechazadas">0</span></span>
+      <span>Errores: <span id="errores">0</span></span>
+    </div>
+    <h3>Aprobadas ✅</h3>
+    <ul id="liveList"></ul>
+
+    <button class="collapsible" onclick="toggleSection('deadList','arrowRech')">
+      <span id="arrowRech">▸</span> Rechazadas ❌
+    </button>
+    <div class="content" style="display: none;"><ul id="deadList"></ul></div>
+
+    <button class="collapsible" onclick="toggleSection('errorList','arrowErr')">
+      <span id="arrowErr">▸</span> Errores ⚠️
+    </button>
+    <div class="content" style="display: none;"><ul id="errorList"></ul></div>
+  </div>
+</div>
+
+<audio id="startSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+<audio id="aprobadaSound" src="Screenrecorder-2025-08-02-23-44-01-77.mp4" preload="auto"></audio>
+
+<script>
+let stopFlag = false;
+let total = 0, aprobadas = 0, rechazadas = 0, errores = 0;
+
+function startChecking() {
+  stopFlag = false;
+  document.getElementById("startSound").play();
+  mostrarCuadroEstado("✅ Iniciado");
+  const input = document.getElementById("cardNumbers").value.trim();
+  const cards = input.split(/\n|\r/).filter(c => c.trim() !== "");
+  total = 0;
+  document.getElementById('total').innerText = 0;
+  aprobadas = rechazadas = errores = 0;
+  document.getElementById("total").innerText = total;
+  document.getElementById("aprobadas").innerText = 0;
+  document.getElementById("rechazadas").innerText = 0;
+  document.getElementById("errores").innerText = 0;
+
+  process(cards);
+}
+
+async function process(cards) {
+  for (let card of cards) {
+    document.getElementById("total").innerText = ++total;
+    // Borrar línea del textarea
+    let textarea = document.getElementById("cardNumbers");
+    let lineas = textarea.value.trim().split(/\n|\r/);
+    lineas.shift();
+    textarea.value = lineas.join("\n");
+    if (stopFlag) break;
+    const partes = card.trim().split("|");
+    if (partes.length !== 4 || partes[0].length !== 16 || partes[1].length !== 2 || partes[2].length !== 4 || partes[3].length !== 3) {
+      errores++;
+      document.getElementById("errorList").innerHTML += `<li style='color: yellow;'>${card}</li>`;
+    } else {
+      const viva = Math.random() < 0.6;
+      if (viva) {
+        document.getElementById("aprobadaSound").play();
+        aprobadas++;
+        document.getElementById("liveList").innerHTML += `<li style='color: #00ff00;'>${card}</li>`;
+      } else {
+        rechazadas++;
+        document.getElementById("deadList").innerHTML += `<li style='color: red;'>${card}</li>`;
+      }
+    }
+    document.getElementById("aprobadas").innerText = aprobadas;
+    document.getElementById("rechazadas").innerText = rechazadas;
+    document.getElementById("errores").innerText = errores;
+  }
+}
+
+function stopChecking() {
+  stopFlag = true;
+  mostrarCuadroEstado("⏸ Pausado");
+}
+
+function clearAll() {
+  document.getElementById("cardNumbers").value = "";
+  document.getElementById("liveList").innerHTML = "";
+  document.getElementById("deadList").innerHTML = "";
+  document.getElementById("errorList").innerHTML = "";
+  document.getElementById("total").innerText = "0";
+  document.getElementById("aprobadas").innerText = "0";
+  document.getElementById("rechazadas").innerText = "0";
+  document.getElementById("errores").innerText = "0";
+}
+
+function copiarAprobadas() {
+  const contenido = document.getElementById("liveList").innerText;
+  navigator.clipboard.writeText(contenido);
+  mostrarCuadroEstado("📋 Copiado");
+}
+
+function toggleSection(id, arrowId) {
+  const section = document.getElementById(id).parentElement;
+  const arrow = document.getElementById(arrowId);
+  if (section.style.display === "none" || section.style.display === "") {
+    section.style.display = "block";
+    arrow.textContent = "▾";
+  } else {
+    section.style.display = "none";
+    arrow.textContent = "▸";
+  }
+}
+
+function mostrarCuadroEstado(texto) {
+  const cuadro = document.getElementById("estadoCuadro");
+  cuadro.innerText = texto;
+  cuadro.style.display = "block";
+  setTimeout(() => {
+    cuadro.style.display = "none";
+  }, 3000);
+}
+
+</script>
+</body>
+</html>
